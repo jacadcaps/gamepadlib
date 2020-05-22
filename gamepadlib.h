@@ -1,3 +1,8 @@
+/*
+** Gamepad Lib - a sensors.library proxy for gamepads
+** (C)2020 Jacek Piszczek / MorphOS Team
+*/
+
 #include <exec/types.h>
 
 #pragma pack(1)
