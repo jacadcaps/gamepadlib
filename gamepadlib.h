@@ -1,0 +1,82 @@
+#include <exec/types.h>
+
+#pragma pack(1)
+
+typedef struct _gmlibStick
+{
+	DOUBLE _eastWest;
+	DOUBLE _northSouth;
+} gmlibStick;
+
+// This is essentially a mapping of a standard console gamepad
+// HID devices will be approximated to this mapping as best as possible
+typedef struct _gmlibGamepadData
+{
+	// Two analog joysticks
+	gmlibStick _leftStick;
+	gmlibStick _rightStick;
+	// Two analog triggers
+	DOUBLE     _leftTrigger;
+	DOUBLE     _rightTrigger;
+	// Buttons
+	ULONG      _dpadLeft : 1;
+	ULONG      _dpadRight : 1;
+	ULONG      _dpadTop : 1;
+	ULONG      _dpadBottom : 1;
+	ULONG      _back : 1;
+	ULONG      _start : 1;
+	ULONG      _leftStickButton : 1;
+	ULONG      _rightStickButton : 1;
+	ULONG      _xLeft : 1;
+	ULONG      _yTop : 1;
+	ULONG      _aBottom : 1;
+	ULONG      _bRight : 1;
+} gmlibGamepadData;
+
+
+typedef struct _gmlibGamepad
+{
+	char  _name[128];
+	UWORD _pid;
+	UWORD _vid;	
+	BOOL  _hasRumble;
+} gmlibGamepad;
+
+#pragma pack(0)
+
+typedef struct _gmlibHandle
+{
+	void *_nope;
+} gmlibHandle;
+
+// Up to 4 gamepads can be handled at once
+#define gmlibSlotMin (1)
+#define gmlibSlotMax (4)
+
+// Initialize gmlib, flags shall be 0 for now.
+// The gameID should be a unique string identifying the game and may be used to provide
+// per-game settings of input mappings etc
+gmlibHandle *gmlibInitialize(const char *gameID, ULONG flags);
+
+// MUST be called on the same thread that Initialize was called on
+void gmlibShutdown(gmlibHandle *handle);
+
+// Dedicated once-per-frame update function
+// MUST be called on the same thread that Initialize was called on
+void gmlibUpdate(gmlibHandle *handle);
+
+// Query for the gamepad at given slot; the gamepad data shall be written to provided storage
+// If a gamepad gets removed, the slot won't be filled by shifting other gamepads, unless
+// gmlibRenumerate is called. If a gamepad is plugged in, it will fill the 1st available slot.
+BOOL gmlibGetGamepad(gmlibHandle *handle, ULONG slot, gmlibGamepad *outGamepad);
+
+// Re-numerate gamepads, this will re-assign their slots to leave no gaps
+// Do NOT call this when playing the game. The only moment where you want to call this is when
+// displaying input settings
+void gmlibRenumerate(gmlibHandle *handle);
+
+// Obtains current gamepad inputs, normally to be called once per frame
+void gmlibGetData(gmlibHandle *handle, ULONG slot, gmlibGamepadData *outData);
+
+// Controls gamepad's motors, if present
+void gmlibSetRumble(gmlibHandle *handle, ULONG slot, DOUBLE smallMotorPower, DOUBLE largeMotorPower, ULONG msDuration);
