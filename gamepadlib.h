@@ -20,24 +20,35 @@ typedef struct _gmlibGamepadData
 	// Two analog joysticks
 	gmlibStick _leftStick;
 	gmlibStick _rightStick;
+
 	// Two analog triggers
 	DOUBLE     _leftTrigger;
 	DOUBLE     _rightTrigger;
-	// Buttons
-	ULONG      _dpadLeft : 1;
-	ULONG      _dpadRight : 1;
-	ULONG      _dpadTop : 1;
-	ULONG      _dpadBottom : 1;
-	ULONG      _back : 1;
-	ULONG      _start : 1;
-	ULONG      _leftStickButton : 1;
-	ULONG      _rightStickButton : 1;
-	ULONG      _xLeft : 1;
-	ULONG      _yTop : 1;
-	ULONG      _aBottom : 1;
-	ULONG      _bRight : 1;
-} gmlibGamepadData;
 
+	// Buttons
+	union {
+		struct buttons {
+			ULONG      _dpadLeft : 1;
+			ULONG      _dpadRight : 1;
+			ULONG      _dpadUp : 1;
+			ULONG      _dpadDown : 1;
+			
+			ULONG      _back : 1;
+			ULONG      _start : 1;
+			ULONG      _leftStickButton : 1;
+			ULONG      _rightStickButton : 1;
+
+			ULONG      _xLeft : 1;
+			ULONG      _yTop : 1;
+			ULONG      _aBottom : 1;
+			ULONG      _bRight : 1;
+
+			ULONG      _shoulderLeft : 1;
+			ULONG      _shoulderRight : 1;
+		} _bits;
+		ULONG _all;
+	} _buttons;
+} gmlibGamepadData;
 
 typedef struct _gmlibGamepad
 {

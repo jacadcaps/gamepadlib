@@ -3,6 +3,6 @@
     <FileVersion major="0" minor="1"/>
     <WorkSpace name="gamepadlib.xwks">
         <Project filepath="gamepadlib.xprj" build="0"/>
-        <Project filepath="gamepadlib-test.xprj" active="1" build="0"/>
+        <Project filepath="gamepadlib-test.xprj" active="1"/>
     </WorkSpace>
 </FlowStudioWorkSpaceFile>

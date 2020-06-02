@@ -2,3 +2,4 @@ Makefile
 *.a
 *.d
 *.o
+gamepadlib-test_DEBUG

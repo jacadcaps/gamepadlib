@@ -9,8 +9,8 @@
         <Option manualmakefile="0"/>
         <Option quietoutput="1"/>
         <Option cvscommand="gg:bin/cvs"/>
-        <Option defaulttarget="RELEASE"/>
-        <Option activetarget="RELEASE"/>
+        <Option defaulttarget="DEBUG"/>
+        <Option activetarget="DEBUG"/>
         <Option crossbuild="0"/>
         <Option crossserver=""/>
         <Option crosslogin=""/>
@@ -38,10 +38,10 @@
             <Option customlinker="1"/>
             <CompilerSettings>
                 <Option cc_predefined="0"/>
-                <Option cc="ppc-morphos-gcc"/>
-                <Option cflags="-g -O0"/>
+                <Option cc="ppc-morphos-gcc-9"/>
+                <Option cflags="-g -Og -Wall"/>
                 <Option cincludes=""/>
-                <Option cdefines=""/>
+                <Option cdefines="-DDEBUG"/>
                 <Option cxx_predefined="0"/>
                 <Option cxx="ppc-morphos-g++"/>
                 <Option cppflags="-g -O0"/>
@@ -54,7 +54,7 @@
                 <Option objcdefines=""/>
             </CompilerSettings>
             <LinkerSettings>
-                <Option linkerpath="ppc-morphos-gcc"/>
+                <Option linkerpath="ppc-morphos-gcc-9"/>
                 <Option linkerflags="-g"/>
                 <Option linkerlibraries=""/>
             </LinkerSettings>
@@ -67,7 +67,7 @@
         <CompilerSettings>
             <Option cc_predefined="5"/>
             <Option cc="ppc-morphos-gcc-9"/>
-            <Option cflags="-O3"/>
+            <Option cflags="-O3 -Wall"/>
             <Option cincludes=""/>
             <Option cdefines=""/>
             <Option cxx_predefined="0"/>
