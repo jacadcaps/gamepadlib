@@ -13,6 +13,27 @@ typedef struct _gmlibStick
 	DOUBLE _northSouth;
 } gmlibStick;
 
+typedef struct _gmlibButtons
+{
+	ULONG      _dpadLeft : 1;
+	ULONG      _dpadRight : 1;
+	ULONG      _dpadUp : 1;
+	ULONG      _dpadDown : 1;
+	
+	ULONG      _back : 1;
+	ULONG      _start : 1;
+	ULONG      _leftStickButton : 1;
+	ULONG      _rightStickButton : 1;
+
+	ULONG      _xLeft : 1;
+	ULONG      _yTop : 1;
+	ULONG      _aBottom : 1;
+	ULONG      _bRight : 1;
+
+	ULONG      _shoulderLeft : 1;
+	ULONG      _shoulderRight : 1;
+} gmlibButtons;
+
 // This is essentially a mapping of a standard console gamepad
 // HID devices will be approximated to this mapping as best as possible
 typedef struct _gmlibGamepadData
@@ -27,25 +48,7 @@ typedef struct _gmlibGamepadData
 
 	// Buttons
 	union {
-		struct buttons {
-			ULONG      _dpadLeft : 1;
-			ULONG      _dpadRight : 1;
-			ULONG      _dpadUp : 1;
-			ULONG      _dpadDown : 1;
-			
-			ULONG      _back : 1;
-			ULONG      _start : 1;
-			ULONG      _leftStickButton : 1;
-			ULONG      _rightStickButton : 1;
-
-			ULONG      _xLeft : 1;
-			ULONG      _yTop : 1;
-			ULONG      _aBottom : 1;
-			ULONG      _bRight : 1;
-
-			ULONG      _shoulderLeft : 1;
-			ULONG      _shoulderRight : 1;
-		} _bits;
+		gmlibButtons _bits;
 		ULONG _all;
 	} _buttons;
 } gmlibGamepadData;

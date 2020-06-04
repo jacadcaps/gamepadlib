@@ -25,10 +25,7 @@ typedef struct _gmlibGamepadDataInternal
 	APTR _leftTriggerSensor;
 	APTR _rightTriggerSensor;
 	// Buttons - notifies
-	APTR _dpadLeftSensor;
-	APTR _dpadRightSensor;
-	APTR _dpadUpSensor;
-	APTR _dpadDownSensor;
+	APTR _dpadSensor;
 	APTR _backSensor;
 	APTR _startSensor;
 	APTR _leftStickButtonSensor;
@@ -47,12 +44,16 @@ struct internalSlot
 	gmlibGamepadData         _data;
 	APTR                     _notify; // MUST be present if the gamepad is valid, removal notification
 	APTR                     _childList;
+	union {
+		gmlibButtons _bits;
+		ULONG _all;
+	} _buttons;
 	gmlibGamepadDataInternal _internal;
 };
 
 #define GET_SLOT(_x_) ((_x_ >> 24) - 1)
 #define GET_INDEX(_x_) (_x_ & 0xFF)
-#define SET_SLOT(_x_, _y_) _x_ |= (((_y_ + 1) << 24) & 0xF)
+#define SET_SLOT(_x_, _y_) _x_ |= ((_y_ + 1) << 24)
  
 struct internalHandle
 {
@@ -143,10 +144,7 @@ void gmlibUpdate(gmlibHandle *handle)
 		for (int i = 0; i < gmlibSlotMax; i++)
 		{
 			struct internalSlot *islot = &ihandle->_slots[i];
-			if (islot->_notify)
-			{
-				islot->_data._buttons._all = 0;
-			}
+			islot->_data._buttons._all = islot->_buttons._all;
 		}
 
 		while ((s = (struct SensorsNotificationMessage *)GetMsg(ihandle->_port)))
@@ -156,19 +154,88 @@ void gmlibUpdate(gmlibHandle *handle)
 				ULONG idx = GET_INDEX((ULONG)s->UserData);
 				ULONG slot = GET_SLOT((ULONG)s->UserData);
 
-				D(printf("button idx %ld slot %ld\n", idx, slot));
-
 				if (slot < gmlibSlotMax && idx < 32)
 				{
 					struct internalSlot *islot = &ihandle->_slots[slot];
-					IPTR valAddr = GetTagData(SENSORS_HIDInput_Value, 0, s->Notifications);
-					DOUBLE *val = (DOUBLE *)valAddr;
 
-					if (val != NULL)
+					if (idx > 3)
 					{
-						if (*val >= 1.0)
-							islot->_data._buttons._all |= idx;
+						IPTR valAddr = GetTagData(SENSORS_HIDInput_Value, 0, s->Notifications);
+						DOUBLE *val = (DOUBLE *)valAddr;
+
+						if (val != NULL)
+						{
+							// data state survives a frame, islot->_buttons holds current state
+							if (*val >= 1.0)
+							{
+								islot->_data._buttons._all |= idx;
+								islot->_buttons._all |= idx;
+							}
+							else
+							{
+								islot->_buttons._all &= ~idx;
+							}
+						}
 					}
+					else
+					{
+						struct TagItem *tag, *taglist = s->Notifications;
+						IPTR valAddr;
+						DOUBLE *val;
+
+						while ((tag = NextTagItem(&taglist)))
+						{
+							switch (tag->ti_Tag)
+							{
+							case SENSORS_HIDInput_NS_Value:
+								valAddr = tag->ti_Data;
+								val = (DOUBLE *)valAddr;
+								if (NULL != val)
+								{
+									if (*val <= -1.0)
+									{
+										islot->_data._buttons._bits._dpadUp = 1;
+										islot->_buttons._bits._dpadUp = 1;
+									}
+									else if (*val >= 1.0)
+									{
+										islot->_data._buttons._bits._dpadDown = 1;
+										islot->_buttons._bits._dpadDown = 1;
+									}
+									else
+									{
+										islot->_buttons._bits._dpadUp = 0;
+										islot->_buttons._bits._dpadDown = 0;
+									}
+								}
+								break;
+							case SENSORS_HIDInput_EW_Value:
+								valAddr = tag->ti_Data;
+								val = (DOUBLE *)valAddr;
+								if (NULL != val)
+								{
+									if (*val <= -1.0)
+									{
+										islot->_data._buttons._bits._dpadLeft = 1;
+										islot->_buttons._bits._dpadLeft = 1;
+									}
+									else if (*val >= 1.0)
+									{
+										islot->_data._buttons._bits._dpadRight = 1;
+										islot->_buttons._bits._dpadRight = 1;
+									}
+									else
+									{
+										islot->_buttons._bits._dpadLeft = 0;
+										islot->_buttons._bits._dpadRight = 0;
+									}
+								}
+								break;
+							}
+						}
+					}
+
+					D(printf("button idx %ld slot %ld - status %lx\n", idx, slot, islot->_data._buttons._all));
 				}
 			}
 			else
@@ -339,30 +406,6 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 							SET_SLOT(tags[0].ti_Data, slotidx);
 							islot->_internal._yTopSensor = StartSensorNotify(sensor, tags);
 						}
-						else if (0 == strcmp(name, "Digital Stick Up"))
-						{
-							tags[0].ti_Data = 2;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._dpadUpSensor = StartSensorNotify(sensor, tags);
-						}
-						else if (0 == strcmp(name, "Digital Stick Down"))
-						{
-							tags[0].ti_Data = 3;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._dpadDownSensor = StartSensorNotify(sensor, tags);
-						}
-						else if (0 == strcmp(name, "Digital Stick Left"))
-						{
-							tags[0].ti_Data = 0;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._dpadLeftSensor = StartSensorNotify(sensor, tags);
-						}
-						else if (0 == strcmp(name, "Digital Stick Right"))
-						{
-							tags[0].ti_Data = 1;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._dpadRightSensor = StartSensorNotify(sensor, tags);
-						}
 						else if (0 == strcmp(name, "Left Analog Joystick Push Button"))
 						{
 							tags[0].ti_Data = 6;
@@ -387,6 +430,20 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 							SET_SLOT(tags[0].ti_Data, slotidx);
 							islot->_internal._backSensor = StartSensorNotify(sensor, tags);
 						}
+					}
+					break;
+				case SensorType_HIDInput_Stick:
+					{
+						struct TagItem tags[] = {
+							{SENSORS_Notification_UserData, 0},
+							{SENSORS_Notification_Destination, (IPTR)ihandle->_port},
+							{SENSORS_Notification_SendInitialValue, TRUE},
+							{SENSORS_HIDInput_NS_Value, 1},
+							{SENSORS_HIDInput_EW_Value, 1},
+							{TAG_DONE}
+						};
+						SET_SLOT(tags[0].ti_Data, slotidx);
+						islot->_internal._dpadSensor = StartSensorNotify(sensor, tags);
 					}
 					break;
 				case SensorType_HIDInput_Analog:
@@ -454,30 +511,12 @@ static void gmlibRealseSlot(struct internalHandle *ihandle, struct internalSlot 
 		islot->_notify = NULL;
 	}
 
-	if (islot->_internal._dpadDownSensor)
+	if (islot->_internal._dpadSensor)
 	{
-		EndSensorNotify(islot->_internal._dpadDownSensor, NULL);
-		islot->_internal._dpadDownSensor = NULL;
+		EndSensorNotify(islot->_internal._dpadSensor, NULL);
+		islot->_internal._dpadSensor = NULL;
 	}
 	
-	if (islot->_internal._dpadLeftSensor)
-	{
-		EndSensorNotify(islot->_internal._dpadLeftSensor, NULL);
-		islot->_internal._dpadLeftSensor = NULL;
-	}
-
-	if (islot->_internal._dpadRightSensor)
-	{
-		EndSensorNotify(islot->_internal._dpadRightSensor, NULL);
-		islot->_internal._dpadRightSensor = NULL;
-	}
-
-	if (islot->_internal._dpadUpSensor)
-	{
-		EndSensorNotify(islot->_internal._dpadUpSensor, NULL);
-		islot->_internal._dpadUpSensor = NULL;
-	}
-
 	if (islot->_internal._backSensor)
 	{
 		EndSensorNotify(islot->_internal._backSensor, NULL);
