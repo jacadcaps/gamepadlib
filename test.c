@@ -30,12 +30,18 @@ int main(void)
 
 			if (pads != padCount)
 			{
-				Printf("Pad count %ld\n", pads);
+				Printf(">> Pad count %ld\n", pads);
 				padCount = pads;
 			}
 			
 			if (SetSignal(0L, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
 				break;
+			
+			if (SetSignal(0L, SIGBREAKF_CTRL_E) & SIGBREAKF_CTRL_E)
+				gmlibRenumerate(gm); 
+
+			if (SetSignal(0L, SIGBREAKF_CTRL_D) & SIGBREAKF_CTRL_D)
+				gmlibSetRumble(gm, gmlibSlotMin, 1.0, 1.0, 1000);
 		}
 
 		gmlibShutdown(gm);

@@ -36,14 +36,23 @@ typedef struct _gmlibGamepadDataInternal
 	APTR _bRightSensor;
 	APTR _shoulderLeftSensor;
 	APTR _shoulderRightSensor;
+	APTR _largeRumble;
+	APTR _smallRumble;
 } gmlibGamepadDataInternal;
+
+struct internalID
+{
+	ULONG                    _vid, _pid;
+	char                     _serial[65];
+};
 
 struct internalSlot
 {
 	gmlibGamepad             _pad;
 	gmlibGamepadData         _data;
-	APTR                     _notify; // MUST be present if the gamepad is valid, removal notification
+	APTR                     _notify;    // MUST be present if the gamepad is valid, removal notification
 	APTR                     _childList;
+	struct internalID        _id;
 	union {
 		gmlibButtons _bits;
 		ULONG _all;
@@ -60,6 +69,7 @@ struct internalHandle
 	APTR _pool;
 	struct Library *_sensorsBase;
 	struct MsgPort *_port;
+	APTR _classNotify;
 	struct internalSlot _slots[gmlibSlotMax];
 };
 
@@ -67,6 +77,16 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, APTR sensor);
 static void gmlibReleaseAll(struct internalHandle *ihandle);
 static void gmlibRealseSlot(struct internalHandle *ihandle, struct internalSlot *islot);
+static BOOL gmlibGetID(struct internalHandle *ihandle, APTR sensor, struct internalID *outID);
+static void gmlibListChanged(struct internalHandle *ihandle);
+
+typedef enum {
+	matchResult_Match        = 0,
+	matchResult_NoMatch      = 1,
+	matchResult_Undetermined = 2,
+} matchResult;
+
+static matchResult gmlibMatchID(struct internalHandle *ihandle, struct internalID *idA, struct internalID *idB);
 
 #define GH(__x__) ((gmlibHandle *)__x__)
 #define IH(__x__) ((struct internalHandle *)__x__)
@@ -89,10 +109,23 @@ gmlibHandle *gmlibInitialize(const char *gameID, ULONG flags)
 			handle->_sensorsBase = OpenLibrary("sensors.library", 53);
 			handle->_port = CreateMsgPort();
 
+			// TODO: force load xbox class
+			
 			if (handle->_sensorsBase && handle->_port)
 			{
 				D(printf("%s: initialized\n", __PRETTY_FUNCTION__));
 				gmlibRenumerate(GH(handle));
+
+				struct TagItem nottags[] =
+				{
+					{SENSORS_Notification_Destination, (ULONG)handle->_port},
+					{SENSORS_Notification_ClassListChanged, TRUE},
+					{SENSORS_Class, SensorClass_HID},
+					{TAG_DONE}
+				};
+				
+				struct Library *SensorsBase = handle->_sensorsBase;
+				handle->_classNotify = StartSensorNotify(NULL, nottags);
 				return GH(handle);
 			}
 			
@@ -240,6 +273,10 @@ void gmlibUpdate(gmlibHandle *handle)
 			}
 			else
 			{
+				// There IS a point to doing 2x FindTagItem: we want to process removals first
+				// before processing any pads being added. In any case, the list will be short and it's
+				// not like we'd execute this on every frame
+
 				if (FindTagItem(SENSORS_Notification_Removed, s->Notifications))
 				{
 					for (int i = 0; i < gmlibSlotMax; i++)
@@ -251,6 +288,11 @@ void gmlibUpdate(gmlibHandle *handle)
 							break;
 						}
 					}
+				}
+
+				if (FindTagItem(SENSORS_Notification_ClassListChanged, s->Notifications))
+				{
+					gmlibListChanged(ihandle);
 				}
 			}
 			
@@ -311,13 +353,14 @@ void gmlibUpdate(gmlibHandle *handle)
 
 BOOL gmlibGetGamepad(gmlibHandle *handle, ULONG slot, gmlibGamepad *outGamepad)
 {
-	if (handle && outGamepad && slot >= gmlibSlotMin && slot <= gmlibSlotMax)
+	if (handle && slot >= gmlibSlotMin && slot <= gmlibSlotMax)
 	{
 		struct internalHandle *ihandle = IH(handle);
 		struct internalSlot *islot = &ihandle->_slots[slot - 1];
 		if (islot->_notify)
 		{
-			memcpy(outGamepad, &islot->_pad, sizeof(*outGamepad));
+			if (outGamepad)
+				memcpy(outGamepad, &islot->_pad, sizeof(*outGamepad));
 			return TRUE;
 		}
 	}
@@ -325,20 +368,69 @@ BOOL gmlibGetGamepad(gmlibHandle *handle, ULONG slot, gmlibGamepad *outGamepad)
 	return FALSE;
 }
 
+static BOOL gmlibGetID(struct internalHandle *ihandle, APTR sensor, struct internalID *outID)
+{
+	struct Library *SensorsBase = ihandle->_sensorsBase;
+	STRPTR serial = NULL;
+	struct TagItem tags[] = {
+		{SENSORS_HID_Product, (IPTR)&outID->_pid},
+		{SENSORS_HID_Vendor, (IPTR)&outID->_vid},
+		{SENSORS_HID_Serial, (IPTR)&serial},
+		{TAG_DONE},
+	};
+
+	outID->_pid = -1;
+	outID->_vid = -1;
+	outID->_serial[0] = 0;
+
+	if (GetSensorAttr(sensor, tags) >= 2)
+	{
+		if (serial)
+			stccpy(outID->_serial, serial, sizeof(outID->_serial));
+		return TRUE;
+	}
+	
+	return FALSE;
+}
+
+static matchResult gmlibMatchID(struct internalHandle *ihandle, struct internalID *idA, struct internalID *idB)
+{
+	if (idA && idB)
+	{
+		if (idA->_pid != idB->_pid || idA->_vid != idB->_vid)
+			return matchResult_NoMatch;
+
+		if (idA->_serial[0] && idB->_serial[0])
+		{
+			if (0 == strcmp(idA->_serial, idB->_serial))
+				return matchResult_Match;
+			return matchResult_NoMatch;
+		}
+		
+		// if no serial, we must renumerate.
+		// hid and xbox classes need to be fixed to try and provide / generate one in all cases
+	}
+
+	return matchResult_Undetermined;
+}
+
 static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APTR parent)
 {
 	struct Library *SensorsBase = ihandle->_sensorsBase;
+	struct internalSlot *islot = &ihandle->_slots[slotidx];
 	struct TagItem tags[] = {
 		{SENSORS_Parent, (IPTR)parent},
 		{SENSORS_Class, SensorClass_HID},
 		{TAG_DONE},
 	};
 
+	if (!gmlibGetID(ihandle, parent, &islot->_id))
+		return FALSE;
+	
 	APTR sensors = ObtainSensorsList(tags);
 
 	if (sensors)
 	{
-		struct internalSlot *islot = &ihandle->_slots[slotidx];
 		APTR sensor = NULL;
 
 		while ((sensor = NextSensor(sensor, sensors, NULL)) != NULL)
@@ -470,6 +562,12 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 							islot->_internal._rightStickSensor = sensor;
 					}
 					break;
+				case SensorType_HIDInput_Rumble:
+					if (0 == strncmp(name, "Large", 5))
+						islot->_internal._largeRumble = sensor;
+					else
+						islot->_internal._smallRumble = sensor;
+					break;
 				}
 			}
 		}
@@ -482,7 +580,7 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 		};
 
 		islot->_childList = sensors;
-		islot->_notify = StartSensorNotify(sensor, nt);
+		islot->_notify = StartSensorNotify(parent, nt);
 		return TRUE;
 	}
 	
@@ -491,7 +589,7 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 
 static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, APTR sensor)
 {
-	// todo
+	// TODO: implement me
 	return FALSE;
 }
 
@@ -576,6 +674,9 @@ static void gmlibRealseSlot(struct internalHandle *ihandle, struct internalSlot 
 		EndSensorNotify(islot->_internal._shoulderRightSensor, NULL);
 		islot->_internal._shoulderRightSensor = NULL;
 	}
+	
+	islot->_internal._smallRumble = NULL;
+	islot->_internal._largeRumble = NULL;
 }
 
 static void gmlibReleaseAll(struct internalHandle *ihandle)
@@ -650,6 +751,102 @@ void gmlibRenumerate(gmlibHandle *handle)
 	}
 }
 
+static BOOL gmlibScanGamepads(struct internalHandle *ihandle, ULONG class)
+{
+	struct Library *SensorsBase = ihandle->_sensorsBase;
+	APTR sensors;
+	LONG slots = 0;
+	BOOL needsRenumerate = FALSE;
+
+	struct TagItem gamepadListTags[] = {
+		{ SENSORS_Class, SensorClass_HID },
+		{ SENSORS_Type, class },
+		{ TAG_DONE }
+	};
+
+	// check how many slots are actually empty...
+	for (int i = 0; i < gmlibSlotMax; i++)
+	{
+		if (NULL == ihandle->_slots[i]._notify)
+			slots ++;
+	}
+	
+	D(printf("%s: scanning class %ld compatibles...\n", __PRETTY_FUNCTION__, class));
+
+	// prefer actual gamepads to random hid devices
+	if ((sensors = ObtainSensorsList(gamepadListTags)))
+	{
+		// setup the gamepad...
+		APTR sensor = NULL;
+
+		while (NULL != (sensor = NextSensor(sensor, sensors, NULL)) && (slots > 0) && (!needsRenumerate))
+		{
+			ULONG freeID = gmlibSlotMax;
+			BOOL addThisSensor = TRUE;
+
+			struct internalID id;
+
+			if (!gmlibGetID(ihandle, sensor, &id))
+				addThisSensor = FALSE;
+			
+			if (addThisSensor)
+			{
+				for (int i = 0; i < gmlibSlotMax && addThisSensor && !needsRenumerate; i++)
+				{
+					struct internalSlot *islot = &ihandle->_slots[i];
+					if (islot->_notify)
+					{
+						switch (gmlibMatchID(ihandle, &islot->_id, &id))
+						{
+						case matchResult_Match:
+							// already added in some slot, skip it
+							addThisSensor = FALSE;
+							break;
+						case matchResult_Undetermined:
+							// we don't know how to match the sensors, force renumeration...
+							needsRenumerate = TRUE;
+							break;
+						case matchResult_NoMatch:
+							// continue checking remaining sensors for the possible match...
+							break;
+						}
+					}					
+					else if (gmlibSlotMax == freeID)
+					{
+						freeID = i;
+					}
+				}
+			}
+			
+			if (addThisSensor && gmlibSetupGamepad(ihandle, freeID, sensor))
+				slots --;
+		}
+		
+		ReleaseSensorsList(sensors, NULL);
+		
+		if (needsRenumerate)
+		{
+			return FALSE;
+		}
+	}
+
+	return TRUE;	
+}
+
+static void gmlibListChanged(struct internalHandle *ihandle)
+{
+	if (!gmlibScanGamepads(ihandle, SensorType_HID_Gamepad))
+	{
+		gmlibRenumerate(GH(ihandle));
+		return;
+	}
+
+	if (!gmlibScanGamepads(ihandle, SensorType_HID_Generic))
+	{
+		gmlibRenumerate(GH(ihandle));
+	}
+}
+
 void gmlibGetData(gmlibHandle *handle, ULONG slot, gmlibGamepadData *outData)
 {
 	if (handle && outData && slot >= gmlibSlotMin && slot <= gmlibSlotMax)
@@ -662,5 +859,31 @@ void gmlibGetData(gmlibHandle *handle, ULONG slot, gmlibGamepadData *outData)
 
 void gmlibSetRumble(gmlibHandle *handle, ULONG slot, DOUBLE smallMotorPower, DOUBLE largeMotorPower, ULONG msDuration)
 {
-	// todo
+	if (handle && slot >= gmlibSlotMin && slot <= gmlibSlotMax)
+	{
+		struct internalHandle *ihandle = IH(handle);		
+		struct Library *SensorsBase = ihandle->_sensorsBase;
+		struct internalSlot *islot = &ihandle->_slots[slot - 1];
+		if (islot->_notify)
+		{
+			struct TagItem large[] = 
+			{
+				{SENSORS_HIDInput_Rumble_Power, (IPTR)&largeMotorPower},
+				{SENSORS_HIDInput_Rumble_Duration, msDuration},
+				{TAG_DONE}
+			};
+
+			struct TagItem small[] = 
+			{
+				{SENSORS_HIDInput_Rumble_Power, (IPTR)&smallMotorPower},
+				{SENSORS_HIDInput_Rumble_Duration, msDuration},
+				{TAG_DONE}
+			};
+				
+			if (islot->_internal._smallRumble)
+				SetSensorAttr(islot->_internal._smallRumble, small);
+			if (islot->_internal._largeRumble)
+				SetSensorAttr(islot->_internal._largeRumble, large);
+		}
+	}
 }
