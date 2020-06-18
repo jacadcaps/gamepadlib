@@ -6,6 +6,8 @@
 #include <libraries/sensors.h>
 #include <libraries/sensors_hid.h>
 #include <string.h>
+#include <libraries/poseidon.h>
+#include <proto/poseidon.h>
 
 #include "gamepadlib.h"
 
@@ -91,6 +93,40 @@ static matchResult gmlibMatchID(struct internalHandle *ihandle, struct internalI
 #define GH(__x__) ((gmlibHandle *)__x__)
 #define IH(__x__) ((struct internalHandle *)__x__)
 
+static void gmlibLoadXboxClass(void)
+{
+	struct Library *PsdBase = OpenLibrary("poseidon.library", 1);
+	if (PsdBase)
+	{
+		struct List *puclist;
+		struct Node *puc;
+		BOOL found = FALSE;
+
+		Forbid();
+		psdGetAttrs(PGA_STACK, NULL, PA_ClassList, &puclist, TAG_END);
+		puc = puclist->lh_Head;
+
+		while(puc->ln_Succ)
+		{
+			if (strstr(puc->ln_Name, "xbox360.class"))
+			{
+				found = TRUE;
+				break;
+			}
+			puc = puc->ln_Succ;
+		}
+		Permit();
+
+		if (!found)
+		{
+			psdAddClass("MOSSYS:Classes/USB/xbox360.class", 0);
+			psdClassScan();
+		}
+		
+		CloseLibrary(PsdBase);
+	}
+}
+
 gmlibHandle *gmlibInitialize(const char *gameID, ULONG flags)
 {
 	(void)gameID;
@@ -109,7 +145,7 @@ gmlibHandle *gmlibInitialize(const char *gameID, ULONG flags)
 			handle->_sensorsBase = OpenLibrary("sensors.library", 53);
 			handle->_port = CreateMsgPort();
 
-			// TODO: force load xbox class
+			gmlibLoadXboxClass();
 			
 			if (handle->_sensorsBase && handle->_port)
 			{
