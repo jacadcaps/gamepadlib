@@ -623,9 +623,160 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 	return FALSE;
 }
 
-static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, APTR sensor)
+static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, APTR parent)
 {
-	// TODO: implement me
+	struct Library *SensorsBase = ihandle->_sensorsBase;
+	struct internalSlot *islot = &ihandle->_slots[slotidx];
+	struct TagItem tags[] = {
+		{SENSORS_Parent, (IPTR)parent},
+		{SENSORS_Class, SensorClass_HID},
+		{TAG_DONE},
+	};
+
+	if (!gmlibGetID(ihandle, parent, &islot->_id))
+		return FALSE;
+	
+	APTR sensors = ObtainSensorsList(tags);
+
+	if (sensors)
+	{
+		APTR sensor = NULL;
+
+		while ((sensor = NextSensor(sensor, sensors, NULL)) != NULL)
+		{
+			ULONG type = 0, id = 0;
+			STRPTR name = NULL;
+
+			struct TagItem qt[] = {
+				{SENSORS_Type, (IPTR)&type},
+				{SENSORS_HIDInput_Name, (IPTR)&name},
+				{SENSORS_HIDInput_ID, (IPTR)&id},
+				{TAG_DONE}
+			};
+
+			if (GetSensorAttr(sensor, qt) > 0)
+			{
+				switch (type)
+				{
+#if 0
+				case SensorType_HIDInput_Trigger:
+					{
+						struct TagItem tags[] = {
+							{SENSORS_Notification_UserData, 0},
+							{SENSORS_Notification_Destination, (IPTR)ihandle->_port},
+							{SENSORS_Notification_SendInitialValue, TRUE},
+							{SENSORS_HIDInput_Value, 1},
+							{TAG_DONE}
+						};
+
+						// need to map the buttons to their functions
+						// not ideal but there's currently no other way to reliably do that
+						if (0 == strcmp(name, "Shoulder Button Left"))
+						{
+							tags[0].ti_Data = 12; // bit number
+							SET_SLOT(tags[0].ti_Data, slotidx);
+							islot->_internal._shoulderLeftSensor = StartSensorNotify(sensor, tags);
+						}
+						else if (0 == strcmp(name, "Shoulder Button Right"))
+						{
+							tags[0].ti_Data = 13;
+							SET_SLOT(tags[0].ti_Data, slotidx);
+							islot->_internal._shoulderRightSensor = StartSensorNotify(sensor, tags);
+						}
+						else if ((0 == strcmp(name, "A Button")) || (0 == strcmp(name, "Cross Button")))
+						{
+							tags[0].ti_Data = 10;
+							SET_SLOT(tags[0].ti_Data, slotidx);
+							islot->_internal._aBottomSensor = StartSensorNotify(sensor, tags);
+						}
+						else if ((0 == strcmp(name, "B Button")) || (0 == strcmp(name, "Circle Button")))
+						{
+							tags[0].ti_Data = 11;
+							SET_SLOT(tags[0].ti_Data, slotidx);
+							islot->_internal._bRightSensor = StartSensorNotify(sensor, tags);
+						}
+						else if ((0 == strcmp(name, "X Button")) || (0 == strcmp(name, "Square Button")))
+						{
+							tags[0].ti_Data = 8;
+							SET_SLOT(tags[0].ti_Data, slotidx);
+							islot->_internal._xLeftSensor = StartSensorNotify(sensor, tags);
+						}
+						else if ((0 == strcmp(name, "Y Button")) || (0 == strcmp(name, "Triangle Button")))
+						{
+							tags[0].ti_Data = 9;
+							SET_SLOT(tags[0].ti_Data, slotidx);
+							islot->_internal._yTopSensor = StartSensorNotify(sensor, tags);
+						}
+						else if (0 == strcmp(name, "Left Analog Joystick Push Button"))
+						{
+							tags[0].ti_Data = 6;
+							SET_SLOT(tags[0].ti_Data, slotidx);
+							islot->_internal._leftStickButtonSensor = StartSensorNotify(sensor, tags);
+						}
+						else if (0 == strcmp(name, "Right Analog Joystick Push Button"))
+						{
+							tags[0].ti_Data = 7;
+							SET_SLOT(tags[0].ti_Data, slotidx);
+							islot->_internal._rightStickButtonSensor = StartSensorNotify(sensor, tags);
+						}
+						else if ((0 == strcmp(name, "Menu Button")) || (0 == strcmp(name, "Share Button")) || (0 == strcmp(name, "Start Button")))
+						{
+							tags[0].ti_Data = 5;
+							SET_SLOT(tags[0].ti_Data, slotidx);
+							islot->_internal._startSensor = StartSensorNotify(sensor, tags);
+						}
+						else if ((0 == strcmp(name, "View Button")) || (0 == strcmp(name, "Options Button")) || (0 == strcmp(name, "Back Button")))
+						{
+							tags[0].ti_Data = 4;
+							SET_SLOT(tags[0].ti_Data, slotidx);
+							islot->_internal._backSensor = StartSensorNotify(sensor, tags);
+						}
+					}
+					break;
+#endif
+				case SensorType_HIDInput_Stick:
+					if (NULL == islot->_internal._dpadSensor)
+					{
+						struct TagItem tags[] = {
+							{SENSORS_Notification_UserData, 0},
+							{SENSORS_Notification_Destination, (IPTR)ihandle->_port},
+							{SENSORS_Notification_SendInitialValue, TRUE},
+							{SENSORS_HIDInput_NS_Value, 1},
+							{SENSORS_HIDInput_EW_Value, 1},
+							{TAG_DONE}
+						};
+						SET_SLOT(tags[0].ti_Data, slotidx);
+						islot->_internal._dpadSensor = StartSensorNotify(sensor, tags);
+					}
+					break;
+				case SensorType_HIDInput_Analog:
+					if (NULL == islot->_internal._leftTriggerSensor)
+						islot->_internal._leftTriggerSensor = sensor;
+					else if (NULL == islot->_internal._rightTriggerSensor)
+							islot->_internal._rightTriggerSensor = sensor;
+					break;
+				case SensorType_HIDInput_AnalogStick:
+					if (NULL == islot->_internal._leftStickSensor)
+						islot->_internal._leftStickSensor = sensor;
+					else if (NULL == islot->_internal._rightStickSensor)
+						islot->_internal._rightStickSensor = sensor;
+					break;
+				}
+			}
+		}
+
+		struct TagItem nt[] = 
+		{
+			{SENSORS_Notification_Destination, (IPTR)ihandle->_port},
+			{SENSORS_Notification_Removed, TRUE},
+			{TAG_DONE}
+		};
+
+		islot->_childList = sensors;
+		islot->_notify = StartSensorNotify(parent, nt);
+		return TRUE;
+	}
+	
 	return FALSE;
 }
 
