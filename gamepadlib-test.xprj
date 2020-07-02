@@ -10,7 +10,7 @@
         <Option quietoutput="1"/>
         <Option cvscommand="gg:bin/cvs"/>
         <Option defaulttarget="DEBUG"/>
-        <Option activetarget="DEBUG"/>
+        <Option activetarget="RELEASE"/>
         <Option crossbuild="0"/>
         <Option crossserver=""/>
         <Option crosslogin=""/>
@@ -36,6 +36,7 @@
             <Option autodeps="1"/>
             <Option customcompiler="1"/>
             <Option customlinker="1"/>
+            <Dependency name="libgamepadlib_DEBUG.a"/>
             <CompilerSettings>
                 <Option cc_predefined="0"/>
                 <Option cc="ppc-morphos-gcc-9"/>

@@ -10,7 +10,7 @@
         <Option quietoutput="1"/>
         <Option cvscommand="gg:bin/cvs"/>
         <Option defaulttarget="DEBUG"/>
-        <Option activetarget="DEBUG"/>
+        <Option activetarget="RELEASE"/>
         <Option crossbuild="0"/>
         <Option crossserver=""/>
         <Option crosslogin=""/>

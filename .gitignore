@@ -3,3 +3,4 @@ Makefile
 *.d
 *.o
 gamepadlib-test_DEBUG
+gamepadlib-test

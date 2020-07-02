@@ -6,6 +6,7 @@
 #include <libraries/sensors.h>
 #include <libraries/sensors_hid.h>
 #include <string.h>
+#include <stddef.h>
 #include <libraries/poseidon.h>
 #include <proto/poseidon.h>
 
@@ -632,6 +633,18 @@ static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, 
 		{SENSORS_Class, SensorClass_HID},
 		{TAG_DONE},
 	};
+	static const char bits[] = { 8, 9, 10, 11, 4, 5, 6, 7 };
+	static const int bitnos = sizeof(bits) / sizeof(char);
+	static const size_t bitoffs[] = { 
+		offsetof(struct _gmlibGamepadDataInternal, _xLeftSensor),
+		offsetof(struct _gmlibGamepadDataInternal, _yTopSensor),
+		offsetof(struct _gmlibGamepadDataInternal, _aBottomSensor),
+		offsetof(struct _gmlibGamepadDataInternal, _bRightSensor),
+		offsetof(struct _gmlibGamepadDataInternal, _backSensor),
+		offsetof(struct _gmlibGamepadDataInternal, _startSensor),
+		offsetof(struct _gmlibGamepadDataInternal, _leftStickButtonSensor),
+		offsetof(struct _gmlibGamepadDataInternal, _rightStickButtonSensor)
+		};
 
 	if (!gmlibGetID(ihandle, parent, &islot->_id))
 		return FALSE;
@@ -641,6 +654,7 @@ static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, 
 	if (sensors)
 	{
 		APTR sensor = NULL;
+		ULONG buttonsFound = 0;
 
 		while ((sensor = NextSensor(sensor, sensors, NULL)) != NULL)
 		{
@@ -656,10 +670,11 @@ static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, 
 
 			if (GetSensorAttr(sensor, qt) > 0)
 			{
+
 				switch (type)
 				{
-#if 0
 				case SensorType_HIDInput_Trigger:
+					if (buttonsFound < bitnos)
 					{
 						struct TagItem tags[] = {
 							{SENSORS_Notification_UserData, 0},
@@ -668,72 +683,13 @@ static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, 
 							{SENSORS_HIDInput_Value, 1},
 							{TAG_DONE}
 						};
-
-						// need to map the buttons to their functions
-						// not ideal but there's currently no other way to reliably do that
-						if (0 == strcmp(name, "Shoulder Button Left"))
-						{
-							tags[0].ti_Data = 12; // bit number
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._shoulderLeftSensor = StartSensorNotify(sensor, tags);
-						}
-						else if (0 == strcmp(name, "Shoulder Button Right"))
-						{
-							tags[0].ti_Data = 13;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._shoulderRightSensor = StartSensorNotify(sensor, tags);
-						}
-						else if ((0 == strcmp(name, "A Button")) || (0 == strcmp(name, "Cross Button")))
-						{
-							tags[0].ti_Data = 10;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._aBottomSensor = StartSensorNotify(sensor, tags);
-						}
-						else if ((0 == strcmp(name, "B Button")) || (0 == strcmp(name, "Circle Button")))
-						{
-							tags[0].ti_Data = 11;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._bRightSensor = StartSensorNotify(sensor, tags);
-						}
-						else if ((0 == strcmp(name, "X Button")) || (0 == strcmp(name, "Square Button")))
-						{
-							tags[0].ti_Data = 8;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._xLeftSensor = StartSensorNotify(sensor, tags);
-						}
-						else if ((0 == strcmp(name, "Y Button")) || (0 == strcmp(name, "Triangle Button")))
-						{
-							tags[0].ti_Data = 9;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._yTopSensor = StartSensorNotify(sensor, tags);
-						}
-						else if (0 == strcmp(name, "Left Analog Joystick Push Button"))
-						{
-							tags[0].ti_Data = 6;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._leftStickButtonSensor = StartSensorNotify(sensor, tags);
-						}
-						else if (0 == strcmp(name, "Right Analog Joystick Push Button"))
-						{
-							tags[0].ti_Data = 7;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._rightStickButtonSensor = StartSensorNotify(sensor, tags);
-						}
-						else if ((0 == strcmp(name, "Menu Button")) || (0 == strcmp(name, "Share Button")) || (0 == strcmp(name, "Start Button")))
-						{
-							tags[0].ti_Data = 5;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._startSensor = StartSensorNotify(sensor, tags);
-						}
-						else if ((0 == strcmp(name, "View Button")) || (0 == strcmp(name, "Options Button")) || (0 == strcmp(name, "Back Button")))
-						{
-							tags[0].ti_Data = 4;
-							SET_SLOT(tags[0].ti_Data, slotidx);
-							islot->_internal._backSensor = StartSensorNotify(sensor, tags);
-						}
+						APTR *sensorAddr = (APTR *)(((UBYTE *)&islot->_internal) + bitoffs[buttonsFound]);
+						tags[0].ti_Data = bits[buttonsFound]; // bit number
+						SET_SLOT(tags[0].ti_Data, slotidx);
+						*sensorAddr = StartSensorNotify(sensor, tags);
+						buttonsFound ++;
 					}
 					break;
-#endif
 				case SensorType_HIDInput_Stick:
 					if (NULL == islot->_internal._dpadSensor)
 					{
