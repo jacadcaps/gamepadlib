@@ -9,15 +9,15 @@
         <Option manualmakefile="0"/>
         <Option quietoutput="1"/>
         <Option cvscommand="gg:bin/cvs"/>
-        <Option defaulttarget="DEBUG"/>
-        <Option activetarget="RELEASE"/>
+        <Option defaulttarget="RELEASE"/>
+        <Option activetarget="DEBUG"/>
         <Option crossbuild="0"/>
         <Option crossserver=""/>
         <Option crosslogin=""/>
         <Option crossdir=""/>
         <Target name="RELEASE">
-            <Option type="5"/>
-            <Option execfile="libgamepadlib.a"/>
+            <Option type="0"/>
+            <Option execfile="test"/>
             <Option execdir=""/>
             <Option objectsdir=""/>
             <Option arguments=""/>
@@ -25,10 +25,11 @@
             <Option autodeps="1"/>
             <Option customcompiler="0"/>
             <Option customlinker="0"/>
+            <Command name="make test"/>
         </Target>
         <Target name="DEBUG">
-            <Option type="5"/>
-            <Option execfile="libgamepadlib_DEBUG.a"/>
+            <Option type="0"/>
+            <Option execfile="test_DEBUG"/>
             <Option execdir=""/>
             <Option objectsdir=""/>
             <Option arguments=""/>
@@ -39,7 +40,7 @@
             <CompilerSettings>
                 <Option cc_predefined="0"/>
                 <Option cc="ppc-morphos-gcc-9"/>
-                <Option cflags="-g -Og -Wall"/>
+                <Option cflags="-g -Og"/>
                 <Option cincludes=""/>
                 <Option cdefines="-DDEBUG"/>
                 <Option cxx_predefined="0"/>
@@ -67,7 +68,7 @@
         <CompilerSettings>
             <Option cc_predefined="5"/>
             <Option cc="ppc-morphos-gcc-9"/>
-            <Option cflags="-O3 -Wall"/>
+            <Option cflags=""/>
             <Option cincludes=""/>
             <Option cdefines=""/>
             <Option cxx_predefined="0"/>
@@ -85,9 +86,21 @@
             <Option inproject="1"/>
             <Option filetype="1"/>
         </FileUnit>
+        <FileUnit filepath="test.c">
+            <Option inproject="1"/>
+            <Option filetype="1"/>
+        </FileUnit>
         <FileUnit filepath="gamepadlib.h">
             <Option inproject="1"/>
             <Option filetype="2"/>
+        </FileUnit>
+        <FileUnit filepath="LICENSE">
+            <Option inproject="1"/>
+            <Option filetype="16"/>
+        </FileUnit>
+        <FileUnit filepath="README.md">
+            <Option inproject="1"/>
+            <Option filetype="16"/>
         </FileUnit>
     </Project>
 </FlowStudioProjectFile>
