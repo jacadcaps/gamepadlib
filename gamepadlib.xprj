@@ -57,7 +57,7 @@
             <LinkerSettings>
                 <Option linkerpath="ppc-morphos-gcc-9"/>
                 <Option linkerflags="-g"/>
-                <Option linkerlibraries=""/>
+                <Option linkerlibraries="-ldebug"/>
             </LinkerSettings>
         </Target>
         <LinkerSettings>

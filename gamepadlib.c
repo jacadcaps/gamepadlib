@@ -13,7 +13,7 @@
 #include "gamepadlib.h"
 
 #ifdef DEBUG
-#include <stdio.h>
+extern void kprintf(const char *, ... );
 #define D(x) x
 #else
 #define D(x)
@@ -120,8 +120,10 @@ static void gmlibLoadXboxClass(void)
 
 		if (!found)
 		{
+			D(kprintf("%s: adding xbox360class...\n", __PRETTY_FUNCTION__));
 			psdAddClass("MOSSYS:Classes/USB/xbox360.class", 0);
 			psdClassScan();
+			D(kprintf("%s: xbox360class initialized\n", __PRETTY_FUNCTION__));
 		}
 		
 		CloseLibrary(PsdBase);
@@ -150,8 +152,10 @@ gmlibHandle *gmlibInitialize(const char *gameID, ULONG flags)
 			
 			if (handle->_sensorsBase && handle->_port)
 			{
-				D(printf("%s: initialized\n", __PRETTY_FUNCTION__));
+				D(kprintf("%s: initialized\n", __PRETTY_FUNCTION__));
+
 				gmlibRenumerate(GH(handle));
+				D(kprintf("%s: renumerated\n", __PRETTY_FUNCTION__));
 
 				struct TagItem nottags[] =
 				{
@@ -163,6 +167,7 @@ gmlibHandle *gmlibInitialize(const char *gameID, ULONG flags)
 				
 				struct Library *SensorsBase = handle->_sensorsBase;
 				handle->_classNotify = StartSensorNotify(NULL, nottags);
+				D(kprintf("%s: classnotify %p\n", __PRETTY_FUNCTION__, handle->_classNotify));
 				return GH(handle);
 			}
 			
@@ -185,7 +190,7 @@ void gmlibShutdown(gmlibHandle *handle)
 		struct internalHandle *ihandle = IH(handle);
 		struct SensorsNotificationMessage *s;
 
-		D(printf("%s: bye\n", __PRETTY_FUNCTION__));
+		D(kprintf("%s: bye\n", __PRETTY_FUNCTION__));
 
 		gmlibReleaseAll(ihandle);
 		while ((s = (struct SensorsNotificationMessage *)GetMsg(ihandle->_port)))
@@ -305,7 +310,7 @@ void gmlibUpdate(gmlibHandle *handle)
 						}
 					}
 
-					D(printf("button idx %ld slot %ld - status %lx\n", idx, slot, islot->_data._buttons._all));
+					D(kprintf("button idx %ld slot %ld - status %lx\n", idx, slot, islot->_data._buttons._all));
 				}
 			}
 			else
@@ -463,6 +468,8 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 
 	if (!gmlibGetID(ihandle, parent, &islot->_id))
 		return FALSE;
+
+	D(kprintf("%s: @slot %ld, add gamepad pid %x vid %x serial '%s'\n", __PRETTY_FUNCTION__, slotidx, islot->_id._pid, islot->_id._vid, islot->_id._serial));
 	
 	APTR sensors = ObtainSensorsList(tags);
 
@@ -485,6 +492,8 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 
 			if (GetSensorAttr(sensor, qt) > 0)
 			{
+				D(kprintf("%s: child sensor type %lx\n", __PRETTY_FUNCTION__, type));
+
 				switch (type)
 				{
 				case SensorType_HIDInput_Trigger:
@@ -649,6 +658,8 @@ static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, 
 	if (!gmlibGetID(ihandle, parent, &islot->_id))
 		return FALSE;
 	
+	D(kprintf("%s: @slot %ld, add gamepad pid %x vid %x serial '%s'\n", __PRETTY_FUNCTION__, slotidx, islot->_id._pid, islot->_id._vid, islot->_id._serial));
+
 	APTR sensors = ObtainSensorsList(tags);
 
 	if (sensors)
@@ -739,6 +750,8 @@ static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, 
 static void gmlibRealseSlot(struct internalHandle *ihandle, struct internalSlot *islot)
 {
 	struct Library *SensorsBase = ihandle->_sensorsBase;
+
+	D(kprintf("%s: slot %p\n", __PRETTY_FUNCTION__, islot));
 
 	if (islot->_childList)
 	{
@@ -852,12 +865,12 @@ void gmlibRenumerate(gmlibHandle *handle)
 			{ TAG_DONE }
 		};
 		
-		D(printf("%s: releasing gamepads...\n", __PRETTY_FUNCTION__));
+		D(kprintf("%s: releasing gamepads...\n", __PRETTY_FUNCTION__));
 
 		// release all gamepads...
 		gmlibReleaseAll(ihandle);
 
-		D(printf("%s: scanning x360 compatibles...\n", __PRETTY_FUNCTION__));
+		D(kprintf("%s: scanning x360 compatibles...\n", __PRETTY_FUNCTION__));
 
 		// prefer actual gamepads to random hid devices
 		if ((sensors = ObtainSensorsList(gamepadListTags)))
@@ -874,11 +887,11 @@ void gmlibRenumerate(gmlibHandle *handle)
 			ReleaseSensorsList(sensors, NULL);
 		}
 		
-		D(printf("%s: slots left %lu\n", __PRETTY_FUNCTION__, slots));
+		D(kprintf("%s: slots left %lu\n", __PRETTY_FUNCTION__, slots));
 		
 		if (slots > 0)
 		{
-			D(printf("%s: scanning hid compatibles...\n", __PRETTY_FUNCTION__));
+			D(kprintf("%s: scanning hid compatibles...\n", __PRETTY_FUNCTION__));
 
 			if ((sensors = ObtainSensorsList(hidListTags)))
 			{
@@ -914,7 +927,7 @@ static BOOL gmlibScanGamepads(struct internalHandle *ihandle, ULONG class)
 			slots ++;
 	}
 	
-	D(printf("%s: scanning class %ld compatibles...\n", __PRETTY_FUNCTION__, class));
+	D(kprintf("%s: scanning class %ld compatibles...\n", __PRETTY_FUNCTION__, class));
 
 	// prefer actual gamepads to random hid devices
 	if ((sensors = ObtainSensorsList(gamepadListTags)))
