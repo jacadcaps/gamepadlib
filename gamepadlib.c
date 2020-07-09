@@ -880,7 +880,7 @@ void gmlibRenumerate(gmlibHandle *handle)
 
 			while (NULL != (sensor = NextSensor(sensor, sensors, NULL)) && (slots > 0))
 			{
-				if (gmlibSetupGamepad(ihandle, slots - gmlibSlotMax, sensor))
+				if (gmlibSetupGamepad(ihandle, gmlibSlotMax - slots, sensor))
 					slots --;
 			}
 			
@@ -898,7 +898,7 @@ void gmlibRenumerate(gmlibHandle *handle)
 				APTR sensor = NULL;
 				while ((sensor = NextSensor(sensor, sensors, NULL)) && slots > 0)
 				{
-					if (gmlibSetupHIDGamepad(ihandle, slots - gmlibSlotMax, sensor))
+					if (gmlibSetupHIDGamepad(ihandle, gmlibSlotMax - slots, sensor))
 						slots --;
 				}
 				ReleaseSensorsList(sensors, NULL);
