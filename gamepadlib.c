@@ -71,6 +71,7 @@ struct internalHandle
 {
 	APTR _pool;
 	struct Library *_sensorsBase;
+	struct Library *_utilityBase;
 	struct MsgPort *_port;
 	APTR _classNotify;
 	struct internalSlot _slots[gmlibSlotMax];
@@ -104,7 +105,8 @@ static void gmlibLoadXboxClass(void)
 		BOOL found = FALSE;
 
 		Forbid();
-		psdGetAttrs(PGA_STACK, NULL, PA_ClassList, &puclist, TAG_END);
+		struct TagItem tags[] = { { PA_ClassList, (IPTR)&puclist }, { TAG_DONE }  };
+		psdGetAttrsA(PGA_STACK, NULL, tags);
 		puc = puclist->lh_Head;
 
 		while(puc->ln_Succ)
@@ -146,11 +148,12 @@ gmlibHandle *gmlibInitialize(const char *gameID, ULONG flags)
 
 			handle->_pool = pool;
 			handle->_sensorsBase = OpenLibrary("sensors.library", 53);
+			handle->_utilityBase = OpenLibrary("utility.library", 0);
 			handle->_port = CreateMsgPort();
 
 			gmlibLoadXboxClass();
 			
-			if (handle->_sensorsBase && handle->_port)
+			if (handle->_sensorsBase && handle->_utilityBase && handle->_port)
 			{
 				D(kprintf("%s: initialized\n", __PRETTY_FUNCTION__));
 
@@ -175,6 +178,8 @@ gmlibHandle *gmlibInitialize(const char *gameID, ULONG flags)
 				DeleteMsgPort(handle->_port);
 			if (handle->_sensorsBase)
 				CloseLibrary(handle->_sensorsBase);
+			if (handle->_utilityBase)
+				CloseLibrary(handle->_utilityBase);
 		}
 		
 		DeletePool(pool);
@@ -201,6 +206,8 @@ void gmlibShutdown(gmlibHandle *handle)
 		DeleteMsgPort(ihandle->_port);
 		if (ihandle->_sensorsBase)
 			CloseLibrary(ihandle->_sensorsBase);
+		if (ihandle->_utilityBase)
+			CloseLibrary(ihandle->_utilityBase);
 
 		DeletePool(ihandle->_pool);
 	}		
@@ -213,6 +220,7 @@ void gmlibUpdate(gmlibHandle *handle)
 	if (ihandle)
 	{
 		struct Library *SensorsBase = ihandle->_sensorsBase;
+		struct Library *UtilityBase = ihandle->_utilityBase;
 		struct SensorsNotificationMessage *s;
 
 		// clear previous button states
