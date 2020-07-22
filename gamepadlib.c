@@ -213,191 +213,214 @@ void gmlibShutdown(gmlibHandle *handle)
 	}		
 }
 
+static void gmlibHandleMessages(struct internalHandle *ihandle)
+{
+	struct Library *SensorsBase = ihandle->_sensorsBase;
+	struct Library *UtilityBase = ihandle->_utilityBase;
+	struct SensorsNotificationMessage *s;
+
+	// clear previous button states
+	for (int i = 0; i < gmlibSlotMax; i++)
+	{
+		struct internalSlot *islot = &ihandle->_slots[i];
+		islot->_data._buttons._all = islot->_buttons._all;
+	}
+
+	while ((s = (struct SensorsNotificationMessage *)GetMsg(ihandle->_port)))
+	{
+		if (s->UserData)
+		{
+			ULONG idx = GET_INDEX((ULONG)s->UserData);
+			ULONG slot = GET_SLOT((ULONG)s->UserData);
+
+			if (slot < gmlibSlotMax && idx < 32)
+			{
+				struct internalSlot *islot = &ihandle->_slots[slot];
+
+				if (idx > 3)
+				{
+					IPTR valAddr = GetTagData(SENSORS_HIDInput_Value, 0, s->Notifications);
+					DOUBLE *val = (DOUBLE *)valAddr;
+
+					if (val != NULL)
+					{
+						// data state survives a frame, islot->_buttons holds current state
+						if (*val >= 1.0)
+						{
+							islot->_data._buttons._all |= idx;
+							islot->_buttons._all |= idx;
+						}
+						else
+						{
+							islot->_buttons._all &= ~idx;
+						}
+					}
+				}
+				else
+				{
+					struct TagItem *tag, *taglist = s->Notifications;
+					IPTR valAddr;
+					DOUBLE *val;
+
+					while ((tag = NextTagItem(&taglist)))
+					{
+						switch (tag->ti_Tag)
+						{
+						case SENSORS_HIDInput_NS_Value:
+							valAddr = tag->ti_Data;
+							val = (DOUBLE *)valAddr;
+							if (NULL != val)
+							{
+								if (*val <= -1.0)
+								{
+									islot->_data._buttons._bits._dpadUp = 1;
+									islot->_buttons._bits._dpadUp = 1;
+								}
+								else if (*val >= 1.0)
+								{
+									islot->_data._buttons._bits._dpadDown = 1;
+									islot->_buttons._bits._dpadDown = 1;
+								}
+								else
+								{
+									islot->_buttons._bits._dpadUp = 0;
+									islot->_buttons._bits._dpadDown = 0;
+								}
+							}
+							break;
+						case SENSORS_HIDInput_EW_Value:
+							valAddr = tag->ti_Data;
+							val = (DOUBLE *)valAddr;
+							if (NULL != val)
+							{
+								if (*val <= -1.0)
+								{
+									islot->_data._buttons._bits._dpadLeft = 1;
+									islot->_buttons._bits._dpadLeft = 1;
+								}
+								else if (*val >= 1.0)
+								{
+									islot->_data._buttons._bits._dpadRight = 1;
+									islot->_buttons._bits._dpadRight = 1;
+								}
+								else
+								{
+									islot->_buttons._bits._dpadLeft = 0;
+									islot->_buttons._bits._dpadRight = 0;
+								}
+							}
+							break;
+						}
+					}
+				}
+
+				D(kprintf("button idx %ld slot %ld - status %lx\n", idx, slot, islot->_data._buttons._all));
+			}
+		}
+		else
+		{
+			// There IS a point to doing 2x FindTagItem: we want to process removals first
+			// before processing any pads being added. In any case, the list will be short and it's
+			// not like we'd execute this on every frame
+
+			if (FindTagItem(SENSORS_Notification_Removed, s->Notifications))
+			{
+				for (int i = 0; i < gmlibSlotMax; i++)
+				{
+					struct internalSlot *islot = &ihandle->_slots[i];
+					if (islot->_notify == s->Sensor)
+					{
+						gmlibRealseSlot(ihandle, islot);
+						break;
+					}
+				}
+			}
+
+			if (FindTagItem(SENSORS_Notification_ClassListChanged, s->Notifications))
+			{
+				gmlibListChanged(ihandle);
+			}
+		}
+		
+		ReplyMsg(&s->Msg);
+	}
+}
+
+static void gmlibPoll(struct internalHandle *ihandle, struct internalSlot *islot)
+{
+	struct Library *SensorsBase = ihandle->_sensorsBase;
+
+	if (islot->_notify)
+	{
+		if (islot->_internal._leftStickSensor)
+		{
+			struct TagItem pollTags[] = {
+				{ SENSORS_HIDInput_NS_Value, (IPTR)&islot->_data._leftStick._northSouth },
+				{ SENSORS_HIDInput_EW_Value, (IPTR)&islot->_data._leftStick._eastWest },
+				{ TAG_DONE }
+			};
+			
+			GetSensorAttr(islot->_internal._leftStickSensor, pollTags);
+		}
+		
+		if (islot->_internal._rightStickSensor)
+		{
+			struct TagItem pollTags[] = {
+				{ SENSORS_HIDInput_NS_Value, (IPTR)&islot->_data._rightStick._northSouth },
+				{ SENSORS_HIDInput_EW_Value, (IPTR)&islot->_data._rightStick._eastWest },
+				{ TAG_DONE }
+			};
+			
+			GetSensorAttr(islot->_internal._rightStickSensor, pollTags);
+		}
+		
+		if (islot->_internal._leftTriggerSensor)
+		{
+			struct TagItem pollTags[] = {
+				{ SENSORS_HIDInput_Value, (IPTR)&islot->_data._leftTrigger },
+				{ TAG_DONE }
+			};
+			
+			GetSensorAttr(islot->_internal._leftTriggerSensor, pollTags);
+		}
+
+		if (islot->_internal._rightTriggerSensor)
+		{
+			struct TagItem pollTags[] = {
+				{ SENSORS_HIDInput_Value, (IPTR)&islot->_data._rightTrigger },
+				{ TAG_DONE }
+			};
+			
+			GetSensorAttr(islot->_internal._rightTriggerSensor, pollTags);
+		}
+	}
+}
+
 void gmlibUpdate(gmlibHandle *handle)
 {
 	struct internalHandle *ihandle = IH(handle);
 
 	if (ihandle)
 	{
-		struct Library *SensorsBase = ihandle->_sensorsBase;
-		struct Library *UtilityBase = ihandle->_utilityBase;
-		struct SensorsNotificationMessage *s;
-
-		// clear previous button states
-		for (int i = 0; i < gmlibSlotMax; i++)
-		{
-			struct internalSlot *islot = &ihandle->_slots[i];
-			islot->_data._buttons._all = islot->_buttons._all;
-		}
-
-		while ((s = (struct SensorsNotificationMessage *)GetMsg(ihandle->_port)))
-		{
-			if (s->UserData)
-			{
-				ULONG idx = GET_INDEX((ULONG)s->UserData);
-				ULONG slot = GET_SLOT((ULONG)s->UserData);
-
-				if (slot < gmlibSlotMax && idx < 32)
-				{
-					struct internalSlot *islot = &ihandle->_slots[slot];
-
-					if (idx > 3)
-					{
-						IPTR valAddr = GetTagData(SENSORS_HIDInput_Value, 0, s->Notifications);
-						DOUBLE *val = (DOUBLE *)valAddr;
-
-						if (val != NULL)
-						{
-							// data state survives a frame, islot->_buttons holds current state
-							if (*val >= 1.0)
-							{
-								islot->_data._buttons._all |= idx;
-								islot->_buttons._all |= idx;
-							}
-							else
-							{
-								islot->_buttons._all &= ~idx;
-							}
-						}
-					}
-					else
-					{
-						struct TagItem *tag, *taglist = s->Notifications;
-						IPTR valAddr;
-						DOUBLE *val;
-
-						while ((tag = NextTagItem(&taglist)))
-						{
-							switch (tag->ti_Tag)
-							{
-							case SENSORS_HIDInput_NS_Value:
-								valAddr = tag->ti_Data;
-								val = (DOUBLE *)valAddr;
-								if (NULL != val)
-								{
-									if (*val <= -1.0)
-									{
-										islot->_data._buttons._bits._dpadUp = 1;
-										islot->_buttons._bits._dpadUp = 1;
-									}
-									else if (*val >= 1.0)
-									{
-										islot->_data._buttons._bits._dpadDown = 1;
-										islot->_buttons._bits._dpadDown = 1;
-									}
-									else
-									{
-										islot->_buttons._bits._dpadUp = 0;
-										islot->_buttons._bits._dpadDown = 0;
-									}
-								}
-								break;
-							case SENSORS_HIDInput_EW_Value:
-								valAddr = tag->ti_Data;
-								val = (DOUBLE *)valAddr;
-								if (NULL != val)
-								{
-									if (*val <= -1.0)
-									{
-										islot->_data._buttons._bits._dpadLeft = 1;
-										islot->_buttons._bits._dpadLeft = 1;
-									}
-									else if (*val >= 1.0)
-									{
-										islot->_data._buttons._bits._dpadRight = 1;
-										islot->_buttons._bits._dpadRight = 1;
-									}
-									else
-									{
-										islot->_buttons._bits._dpadLeft = 0;
-										islot->_buttons._bits._dpadRight = 0;
-									}
-								}
-								break;
-							}
-						}
-					}
-
-					D(kprintf("button idx %ld slot %ld - status %lx\n", idx, slot, islot->_data._buttons._all));
-				}
-			}
-			else
-			{
-				// There IS a point to doing 2x FindTagItem: we want to process removals first
-				// before processing any pads being added. In any case, the list will be short and it's
-				// not like we'd execute this on every frame
-
-				if (FindTagItem(SENSORS_Notification_Removed, s->Notifications))
-				{
-					for (int i = 0; i < gmlibSlotMax; i++)
-					{
-						struct internalSlot *islot = &ihandle->_slots[i];
-						if (islot->_notify == s->Sensor)
-						{
-							gmlibRealseSlot(ihandle, islot);
-							break;
-						}
-					}
-				}
-
-				if (FindTagItem(SENSORS_Notification_ClassListChanged, s->Notifications))
-				{
-					gmlibListChanged(ihandle);
-				}
-			}
-			
-			ReplyMsg(&s->Msg);
-		}
-
+		gmlibHandleMessages(ihandle);
+	
 		// For analog inputs we want to get the current reading at time of gmlibUpdate
 		for (int i = 0; i < gmlibSlotMax; i++)
 		{
 			struct internalSlot *islot = &ihandle->_slots[i];
-			if (islot->_notify)
-			{
-				if (islot->_internal._leftStickSensor)
-				{
-					struct TagItem pollTags[] = {
-						{ SENSORS_HIDInput_NS_Value, (IPTR)&islot->_data._leftStick._northSouth },
-						{ SENSORS_HIDInput_EW_Value, (IPTR)&islot->_data._leftStick._eastWest },
-						{ TAG_DONE }
-					};
-					
-					GetSensorAttr(islot->_internal._leftStickSensor, pollTags);
-				}
-				
-				if (islot->_internal._rightStickSensor)
-				{
-					struct TagItem pollTags[] = {
-						{ SENSORS_HIDInput_NS_Value, (IPTR)&islot->_data._rightStick._northSouth },
-						{ SENSORS_HIDInput_EW_Value, (IPTR)&islot->_data._rightStick._eastWest },
-						{ TAG_DONE }
-					};
-					
-					GetSensorAttr(islot->_internal._rightStickSensor, pollTags);
-				}
-				
-				if (islot->_internal._leftTriggerSensor)
-				{
-					struct TagItem pollTags[] = {
-						{ SENSORS_HIDInput_Value, (IPTR)&islot->_data._leftTrigger },
-						{ TAG_DONE }
-					};
-					
-					GetSensorAttr(islot->_internal._leftTriggerSensor, pollTags);
-				}
-
-				if (islot->_internal._rightTriggerSensor)
-				{
-					struct TagItem pollTags[] = {
-						{ SENSORS_HIDInput_Value, (IPTR)&islot->_data._rightTrigger },
-						{ TAG_DONE }
-					};
-					
-					GetSensorAttr(islot->_internal._rightTriggerSensor, pollTags);
-				}
-			}
+			gmlibPoll(ihandle, islot);
 		}
+	}
+}
+
+void gmlibUpdateOne(gmlibHandle *handle, ULONG slot)
+{
+	struct internalHandle *ihandle = IH(handle);
+
+	if (ihandle && slot >= gmlibSlotMin && slot <= gmlibSlotMax)
+	{
+		gmlibHandleMessages(ihandle);
+		gmlibPoll(ihandle, &ihandle->_slots[slot - 1]);
 	}
 }
 

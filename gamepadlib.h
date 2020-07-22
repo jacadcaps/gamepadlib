@@ -84,6 +84,9 @@ void gmlibShutdown(gmlibHandle *handle);
 // MUST be called on the same thread that Initialize was called on
 void gmlibUpdate(gmlibHandle *handle);
 
+// Read outstanding messages for all gamepads, but poll states only of the selected gamepad
+void gmlibUpdateOne(gmlibHandle *handle, ULONG slot);
+
 // Query for the gamepad at given slot; the gamepad data shall be written to provided storage
 // If a gamepad gets removed, the slot won't be filled by shifting other gamepads, unless
 // gmlibRenumerate is called. If a gamepad is plugged in, it will fill the 1st available slot.
