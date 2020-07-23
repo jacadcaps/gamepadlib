@@ -776,85 +776,45 @@ static void gmlibRealseSlot(struct internalHandle *ihandle, struct internalSlot 
 	D(kprintf("%s: slot %p\n", __PRETTY_FUNCTION__, islot));
 
 	if (islot->_childList)
-	{
 		ReleaseSensorsList(islot->_childList, NULL);
-		islot->_childList = NULL;
-	}
 	
 	if (islot->_notify)
-	{
 		EndSensorNotify(islot->_notify, NULL);
-		islot->_notify = NULL;
-	}
 
 	if (islot->_internal._dpadSensor)
-	{
 		EndSensorNotify(islot->_internal._dpadSensor, NULL);
-		islot->_internal._dpadSensor = NULL;
-	}
 	
 	if (islot->_internal._backSensor)
-	{
 		EndSensorNotify(islot->_internal._backSensor, NULL);
-		islot->_internal._backSensor = NULL;
-	}
 
 	if (islot->_internal._startSensor)
-	{
 		EndSensorNotify(islot->_internal._startSensor, NULL);
-		islot->_internal._startSensor = NULL;
-	}
 
 	if (islot->_internal._leftStickButtonSensor)
-	{
 		EndSensorNotify(islot->_internal._leftStickButtonSensor, NULL);
-		islot->_internal._leftStickButtonSensor = NULL;
-	}
 
 	if (islot->_internal._rightStickButtonSensor)
-	{
 		EndSensorNotify(islot->_internal._rightStickButtonSensor, NULL);
-		islot->_internal._rightStickButtonSensor = NULL;
-	}
 
 	if (islot->_internal._xLeftSensor)
-	{
 		EndSensorNotify(islot->_internal._xLeftSensor, NULL);
-		islot->_internal._xLeftSensor = NULL;
-	}
 
 	if (islot->_internal._yTopSensor)
-	{
 		EndSensorNotify(islot->_internal._yTopSensor, NULL);
-		islot->_internal._yTopSensor = NULL;
-	}
 
 	if (islot->_internal._aBottomSensor)
-	{
 		EndSensorNotify(islot->_internal._aBottomSensor, NULL);
-		islot->_internal._aBottomSensor = NULL;
-	}
 
 	if (islot->_internal._bRightSensor)
-	{
 		EndSensorNotify(islot->_internal._bRightSensor, NULL);
-		islot->_internal._bRightSensor = NULL;
-	}
 
 	if (islot->_internal._shoulderLeftSensor)
-	{
 		EndSensorNotify(islot->_internal._shoulderLeftSensor, NULL);
-		islot->_internal._shoulderLeftSensor = NULL;
-	}
 
 	if (islot->_internal._shoulderRightSensor)
-	{
 		EndSensorNotify(islot->_internal._shoulderRightSensor, NULL);
-		islot->_internal._shoulderRightSensor = NULL;
-	}
-	
-	islot->_internal._smallRumble = NULL;
-	islot->_internal._largeRumble = NULL;
+
+	memset(islot, 0, sizeof(*islot));
 }
 
 static void gmlibReleaseAll(struct internalHandle *ihandle)
