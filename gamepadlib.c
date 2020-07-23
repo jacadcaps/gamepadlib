@@ -194,9 +194,12 @@ void gmlibShutdown(gmlibHandle *handle)
 	{
 		struct internalHandle *ihandle = IH(handle);
 		struct SensorsNotificationMessage *s;
+		struct Library *SensorsBase = ihandle->_sensorsBase;
 
 		D(kprintf("%s: bye\n", __PRETTY_FUNCTION__));
 
+		EndSensorNotify(ihandle->_classNotify, NULL);
+		
 		gmlibReleaseAll(ihandle);
 		while ((s = (struct SensorsNotificationMessage *)GetMsg(ihandle->_port)))
 		{
@@ -1010,6 +1013,7 @@ static BOOL gmlibScanGamepads(struct internalHandle *ihandle, ULONG class)
 
 static void gmlibListChanged(struct internalHandle *ihandle)
 {
+	D(kprintf("%s: scanning for added gamepads...\n", __PRETTY_FUNCTION__));
 	if (!gmlibScanGamepads(ihandle, SensorType_HID_Gamepad))
 	{
 		gmlibRenumerate(GH(ihandle));
