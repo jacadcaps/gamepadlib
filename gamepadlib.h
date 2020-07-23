@@ -15,23 +15,25 @@ typedef struct _gmlibStick
 
 typedef struct _gmlibButtons
 {
-	ULONG      _dpadLeft : 1;
-	ULONG      _dpadRight : 1;
-	ULONG      _dpadUp : 1;
-	ULONG      _dpadDown : 1;
-	
-	ULONG      _back : 1;
-	ULONG      _start : 1;
-	ULONG      _leftStickButton : 1;
-	ULONG      _rightStickButton : 1;
+	ULONG      _dummy : 18;
 
-	ULONG      _xLeft : 1;
-	ULONG      _yTop : 1;
-	ULONG      _aBottom : 1;
-	ULONG      _bRight : 1;
-
-	ULONG      _shoulderLeft : 1;
 	ULONG      _shoulderRight : 1;
+	ULONG      _shoulderLeft : 1;
+
+	ULONG      _bRight : 1;
+	ULONG      _aBottom : 1;
+	ULONG      _yTop : 1;
+	ULONG      _xLeft : 1;
+		
+	ULONG      _rightStickButton : 1;
+	ULONG      _leftStickButton : 1;
+	ULONG      _start : 1;
+	ULONG      _back : 1;
+
+	ULONG      _dpadDown : 1;
+	ULONG      _dpadUp : 1;
+	ULONG      _dpadRight : 1;
+	ULONG      _dpadLeft : 1;
 } gmlibButtons;
 
 // This is essentially a mapping of a standard console gamepad
@@ -82,10 +84,9 @@ void gmlibShutdown(gmlibHandle *handle);
 
 // Dedicated once-per-frame update function
 // MUST be called on the same thread that Initialize was called on
+// MUST be called ONCE before polling states of gamepads with gmlibGetData (there's no need
+// to poll unused gamepads)
 void gmlibUpdate(gmlibHandle *handle);
-
-// Read outstanding messages for all gamepads, but poll states only of the selected gamepad
-void gmlibUpdateOne(gmlibHandle *handle, ULONG slot);
 
 // Query for the gamepad at given slot; the gamepad data shall be written to provided storage
 // If a gamepad gets removed, the slot won't be filled by shifting other gamepads, unless

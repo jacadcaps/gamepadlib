@@ -215,7 +215,6 @@ void gmlibShutdown(gmlibHandle *handle)
 
 static void gmlibHandleMessages(struct internalHandle *ihandle)
 {
-	struct Library *SensorsBase = ihandle->_sensorsBase;
 	struct Library *UtilityBase = ihandle->_utilityBase;
 	struct SensorsNotificationMessage *s;
 
@@ -247,12 +246,12 @@ static void gmlibHandleMessages(struct internalHandle *ihandle)
 						// data state survives a frame, islot->_buttons holds current state
 						if (*val >= 1.0)
 						{
-							islot->_data._buttons._all |= idx;
-							islot->_buttons._all |= idx;
+							islot->_data._buttons._all |= (1 << idx);
+							islot->_buttons._all |= (1 << idx);
 						}
 						else
 						{
-							islot->_buttons._all &= ~idx;
+							islot->_buttons._all &= ~(1 << idx);
 						}
 					}
 				}
@@ -410,17 +409,6 @@ void gmlibUpdate(gmlibHandle *handle)
 			struct internalSlot *islot = &ihandle->_slots[i];
 			gmlibPoll(ihandle, islot);
 		}
-	}
-}
-
-void gmlibUpdateOne(gmlibHandle *handle, ULONG slot)
-{
-	struct internalHandle *ihandle = IH(handle);
-
-	if (ihandle && slot >= gmlibSlotMin && slot <= gmlibSlotMax)
-	{
-		gmlibHandleMessages(ihandle);
-		gmlibPoll(ihandle, &ihandle->_slots[slot - 1]);
 	}
 }
 
