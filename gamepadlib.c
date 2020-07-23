@@ -41,6 +41,8 @@ typedef struct _gmlibGamepadDataInternal
 	APTR _shoulderRightSensor;
 	APTR _largeRumble;
 	APTR _smallRumble;
+	// Battery
+	APTR _batterySensor;
 } gmlibGamepadDataInternal;
 
 struct internalID
@@ -318,6 +320,16 @@ static void gmlibHandleMessages(struct internalHandle *ihandle)
 
 				D(kprintf("button idx %ld slot %ld - status %lx\n", idx, slot, islot->_data._buttons._all));
 			}
+			else if (slot < gmlibSlotMax && idx == 32)
+			{
+				IPTR valAddr = GetTagData(SENSORS_HIDInput_Value, 0, s->Notifications);
+				DOUBLE *val = (DOUBLE *)valAddr;
+				if (val)
+				{
+					struct internalSlot *islot = &ihandle->_slots[slot];
+					islot->_data._battery = *val;
+				}
+			}
 		}
 		else
 		{
@@ -482,17 +494,26 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 {
 	struct Library *SensorsBase = ihandle->_sensorsBase;
 	struct internalSlot *islot = &ihandle->_slots[slotidx];
+
+	CONST_STRPTR padName = NULL;
+	struct TagItem nameTags[] = {
+		{SENSORS_HID_Name, (IPTR)&padName},
+		{TAG_DONE}
+	};
+
+	GetSensorAttr(parent, nameTags);	
+	
+	if (!gmlibGetID(ihandle, parent, &islot->_id))
+		return FALSE;
+
+	D(kprintf("%s: @slot %ld, add gamepad pid %x vid %x serial '%s'\n", __PRETTY_FUNCTION__, slotidx, islot->_id._pid, islot->_id._vid, islot->_id._serial));
+	
 	struct TagItem tags[] = {
 		{SENSORS_Parent, (IPTR)parent},
 		{SENSORS_Class, SensorClass_HID},
 		{TAG_DONE},
 	};
 
-	if (!gmlibGetID(ihandle, parent, &islot->_id))
-		return FALSE;
-
-	D(kprintf("%s: @slot %ld, add gamepad pid %x vid %x serial '%s'\n", __PRETTY_FUNCTION__, slotidx, islot->_id._pid, islot->_id._vid, islot->_id._serial));
-	
 	APTR sensors = ObtainSensorsList(tags);
 
 	if (sensors)
@@ -636,6 +657,19 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 					else
 						islot->_internal._smallRumble = sensor;
 					break;
+				case SensorType_HIDInput_Battery:
+					{
+						struct TagItem tags[] = {
+							{SENSORS_Notification_UserData, 32},
+							{SENSORS_Notification_Destination, (IPTR)ihandle->_port},
+							{SENSORS_Notification_SendInitialValue, TRUE},
+							{SENSORS_HIDInput_Value, 1},
+							{TAG_DONE}
+						};
+						SET_SLOT(tags[0].ti_Data, slotidx);
+						islot->_internal._batterySensor = sensor;
+					}
+					break;
 				}
 			}
 		}
@@ -649,6 +683,16 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 
 		islot->_childList = sensors;
 		islot->_notify = StartSensorNotify(parent, nt);
+
+		islot->_pad._pid = islot->_id._pid;
+		islot->_pad._vid = islot->_id._vid;
+		islot->_pad._hasRumble = TRUE;
+		islot->_pad._hasBattery = islot->_internal._batterySensor != NULL;
+		if (padName)
+			stccpy(islot->_pad._name, padName, sizeof(islot->_pad._name));
+		else
+			strcpy(islot->_pad._name, "Unknown Gamepad");
+
 		return TRUE;
 	}
 	
@@ -676,6 +720,14 @@ static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, 
 		offsetof(struct _gmlibGamepadDataInternal, _leftStickButtonSensor),
 		offsetof(struct _gmlibGamepadDataInternal, _rightStickButtonSensor)
 		};
+
+	CONST_STRPTR padName = NULL;
+	struct TagItem nameTags[] = {
+		{SENSORS_HID_Name, (IPTR)&padName},
+		{TAG_DONE}
+	};
+
+	GetSensorAttr(parent, nameTags);	
 
 	if (!gmlibGetID(ihandle, parent, &islot->_id))
 		return FALSE;
@@ -763,6 +815,14 @@ static BOOL gmlibSetupHIDGamepad(struct internalHandle *ihandle, ULONG slotidx, 
 
 		islot->_childList = sensors;
 		islot->_notify = StartSensorNotify(parent, nt);
+		islot->_pad._pid = islot->_id._pid;
+		islot->_pad._vid = islot->_id._vid;
+		islot->_pad._hasRumble = FALSE;
+		islot->_pad._hasBattery = FALSE;
+		if (padName)
+			stccpy(islot->_pad._name, padName, sizeof(islot->_pad._name));
+		else
+			strcpy(islot->_pad._name, "Unknown Gamepad");
 		return TRUE;
 	}
 	
@@ -814,6 +874,9 @@ static void gmlibRealseSlot(struct internalHandle *ihandle, struct internalSlot 
 	if (islot->_internal._shoulderRightSensor)
 		EndSensorNotify(islot->_internal._shoulderRightSensor, NULL);
 
+	if (islot->_internal._batterySensor)
+		EndSensorNotify(islot->_internal._batterySensor, NULL);
+	
 	memset(islot, 0, sizeof(*islot));
 }
 

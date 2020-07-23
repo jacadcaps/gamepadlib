@@ -9,6 +9,7 @@ int main(void)
 	if (gm)
 	{
 		int padCount = 0;
+		BOOL noisyList = TRUE;
 
 		for (;;)
 		{
@@ -20,18 +21,26 @@ int main(void)
 			
 			for (int i = gmlibSlotMin; i <= gmlibSlotMax; i++)
 			{
-				if (gmlibGetGamepad(gm, i, NULL))
+				gmlibGamepad pad;
+				if (gmlibGetGamepad(gm, i, noisyList ? &pad : NULL))
 				{
 					gmlibGamepadData data;
 					gmlibGetData(gm, i, &data);
+					if (noisyList)
+					{
+						Printf("Pad %s (%lx/%lx) hasBattery %ld (%ld) hasRumble %ld\n", pad._name, pad._vid, pad._pid, pad._hasBattery, (int)(data._battery * 100), pad._hasRumble);
+					}
 					pads ++;
 				}
 			}
 
+			noisyList = FALSE;
+			
 			if (pads != padCount)
 			{
 				Printf(">> Pad count %ld\n", pads);
 				padCount = pads;
+				noisyList = TRUE;
 			}
 			
 			if (SetSignal(0L, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)

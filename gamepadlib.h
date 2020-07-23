@@ -53,6 +53,9 @@ typedef struct _gmlibGamepadData
 		gmlibButtons _bits;
 		ULONG _all;
 	} _buttons;
+	
+	// Battery state
+	DOUBLE     _battery;
 } gmlibGamepadData;
 
 typedef struct _gmlibGamepad
@@ -61,6 +64,7 @@ typedef struct _gmlibGamepad
 	UWORD _pid;
 	UWORD _vid;	
 	BOOL  _hasRumble;
+	BOOL  _hasBattery;
 } gmlibGamepad;
 
 #pragma pack(0)
