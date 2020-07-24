@@ -667,7 +667,7 @@ static BOOL gmlibSetupGamepad(struct internalHandle *ihandle, ULONG slotidx, APT
 							{TAG_DONE}
 						};
 						SET_SLOT(tags[0].ti_Data, slotidx);
-						islot->_internal._batterySensor = sensor;
+						islot->_internal._batterySensor = StartSensorNotify(sensor, tags);
 					}
 					break;
 				}
