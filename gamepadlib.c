@@ -125,7 +125,7 @@ static void gmlibLoadXboxClass(void)
 		if (!found)
 		{
 			D(kprintf("%s: adding xbox360class...\n", __PRETTY_FUNCTION__));
-			psdAddClass("MOSSYS:Classes/USB/xbox360.class", 0);
+			psdAddClass((STRPTR)"MOSSYS:Classes/USB/xbox360.class", 0);
 			psdClassScan();
 			D(kprintf("%s: xbox360class initialized\n", __PRETTY_FUNCTION__));
 		}
@@ -952,7 +952,7 @@ void gmlibRenumerate(gmlibHandle *handle)
 	}
 }
 
-static BOOL gmlibScanGamepads(struct internalHandle *ihandle, ULONG class)
+static BOOL gmlibScanGamepads(struct internalHandle *ihandle, ULONG gclass)
 {
 	struct Library *SensorsBase = ihandle->_sensorsBase;
 	APTR sensors;
@@ -961,7 +961,7 @@ static BOOL gmlibScanGamepads(struct internalHandle *ihandle, ULONG class)
 
 	struct TagItem gamepadListTags[] = {
 		{ SENSORS_Class, SensorClass_HID },
-		{ SENSORS_Type, class },
+		{ SENSORS_Type, gclass },
 		{ TAG_DONE }
 	};
 
@@ -972,7 +972,7 @@ static BOOL gmlibScanGamepads(struct internalHandle *ihandle, ULONG class)
 			slots ++;
 	}
 	
-	D(kprintf("%s: scanning class %ld compatibles...\n", __PRETTY_FUNCTION__, class));
+	D(kprintf("%s: scanning class %ld compatibles...\n", __PRETTY_FUNCTION__, gclass));
 
 	// prefer actual gamepads to random hid devices
 	if ((sensors = ObtainSensorsList(gamepadListTags)))
