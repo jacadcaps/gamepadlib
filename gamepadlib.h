@@ -5,6 +5,10 @@
 #pragma once
 #include <exec/types.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #pragma pack(1)
 
 typedef struct _gmlibStick
@@ -107,3 +111,7 @@ void gmlibGetData(gmlibHandle *handle, ULONG slot, gmlibGamepadData *outData);
 
 // Controls gamepad's motors, if present
 void gmlibSetRumble(gmlibHandle *handle, ULONG slot, DOUBLE smallMotorPower, DOUBLE largeMotorPower, ULONG msDuration);
+
+#ifdef __cplusplus
+}
+#endif
